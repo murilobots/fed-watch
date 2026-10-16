@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fed Watch — Dashboard FOMC</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg2: #111a2e;
+    --card: #152238;
+    --card2: #1a2b45;
+    --border: #243552;
+    --text: #e8eef8;
+    --muted: #8fa3c1;
+    --accent: #5b8cff;
+    --hawk: #ff6b6b;
+    --dove: #4ecdc4;
+    --neutro: #f0c14b;
+    --ok: #3dd68c;
+    --shadow: 0 8px 28px rgba(0,0,0,.35);
+    --radius: 14px;
+    --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: radial-gradient(1200px 600px at 10% -10%, #1a2f55 0%, transparent 55%),
+                radial-gradient(900px 500px at 100% 0%, #1a3a3a 0%, transparent 40%),
+                var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.45;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 60px; }
+  header.hero {
+    display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 28px;
+  }
+  .brand h1 {
+    margin: 0 0 6px; font-size: 1.75rem; letter-spacing: -.02em;
+    background: linear-gradient(90deg, #fff, #9ec1ff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .meeting-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .meet {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 18px; min-width: 220px; box-shadow: var(--shadow);
+  }
+  .meet .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .meet .value { font-size: 1.05rem; font-weight: 650; margin-top: 4px; }
+  .meet .sub { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+  .meet.last { border-left: 3px solid var(--ok); }
+  .meet.next { border-left: 3px solid var(--accent); }
+
+  .kpis {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .kpi .n { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+  .kpi .l { color: var(--muted); font-size: .8rem; margin-top: 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .kpi.hawk .n { color: var(--hawk); }
+  .kpi.dove .n { color: var(--dove); }
+  .kpi.neutro .n { color: var(--neutro); }
+  .kpi.vot .n { color: var(--accent); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 24px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 14px; font-size: 1.05rem; font-weight: 650;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center;
+  }
+  .filters label { font-size: .8rem; color: var(--muted); }
+  select, input[type="search"] {
+    background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: .9rem; outline: none;
+  }
+  select:focus, input[type="search"]:focus { border-color: var(--accent); }
+  input[type="search"] { min-width: 180px; flex: 1; }
+
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th {
+    background: var(--bg2); color: var(--muted); font-weight: 600; font-size: .75rem;
+    text-transform: uppercase; letter-spacing: .05em; cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  th:hover { color: var(--text); }
+  th .sort { opacity: .45; margin-left: 4px; }
+  tr:hover td { background: rgba(91,140,255,.06); }
+  tr.clickable { cursor: pointer; }
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .72rem;
+    font-weight: 650; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .badge.hawk { background: rgba(255,107,107,.18); color: var(--hawk); }
+  .badge.dove { background: rgba(78,205,196,.18); color: var(--dove); }
+  .badge.neutro { background: rgba(240,193,75,.18); color: var(--neutro); }
+  .badge.yes { background: rgba(61,214,140,.15); color: var(--ok); }
+  .badge.no { background: rgba(143,163,193,.12); color: var(--muted); }
+  .badge.diss { background: rgba(255,107,107,.2); color: var(--hawk); }
+
+  .chart-box { position: relative; height: 260px; }
+  .chart-box.sm { height: 220px; }
+
+  .speech-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+  .speech {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  }
+  .speech .top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .speech .who { font-weight: 650; font-size: .92rem; }
+  .speech .when { color: var(--muted); font-size: .78rem; }
+  .speech .title { font-size: .88rem; margin: 2px 0 4px; }
+  .speech .resumo { color: var(--muted); font-size: .82rem; }
+
+  /* Modal */
+  .modal-bg {
+    display: none; position: fixed; inset: 0; background: rgba(5,10,20,.72);
+    z-index: 100; align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--card2); border: 1px solid var(--border); border-radius: 16px;
+    max-width: 720px; width: 100%; max-height: 90vh; overflow-y: auto;
+    padding: 24px 26px; box-shadow: var(--shadow);
+  }
+  .modal header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .modal h3 { margin: 0; font-size: 1.25rem; }
+  .modal .close {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 8px; width: 36px; height: 36px; cursor: pointer; font-size: 1.2rem;
+  }
+  .modal .close:hover { color: var(--text); border-color: var(--accent); }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (max-width: 560px) { .meta-grid { grid-template-columns: 1fr; } }
+  .meta-item {
+    background: var(--bg2); border-radius: 10px; padding: 10px 12px; border: 1px solid var(--border);
+  }
+  .meta-item .k { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .meta-item .v { font-size: .9rem; margin-top: 3px; }
+  .section-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 6px; }
+  .temas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tema {
+    background: rgba(91,140,255,.12); color: #b5cdff; border-radius: 6px;
+    padding: 3px 8px; font-size: .78rem;
+  }
+  .evolucao { color: var(--muted); font-size: .88rem; }
+  .member-speeches { display: flex; flex-direction: column; gap: 8px; }
+  .member-speeches a.sp {
+    display: block; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; color: var(--text); text-decoration: none;
+  }
+  .member-speeches a.sp:hover { border-color: var(--accent); }
+  .footer {
+    margin-top: 28px; color: var(--muted); font-size: .8rem; text-align: center;
+  }
+  .empty { color: var(--muted); font-size: .9rem; padding: 16px; text-align: center; }
+  .votes-mini { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+  .vote-row {
+    display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    background: var(--bg2); border-radius: 8px; padding: 8px 12px; border: 1px solid var(--border);
+    font-size: .85rem;
+  }
+  .vote-row .dec { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="brand">
+      <h1>Fed Watch</h1>
+      <p>Painel dos membros do FOMC · atualizado <span id="upd"></span></p>
+    </div>
+    <div class="meeting-cards">
+      <div class="meet last">
+        <div class="label">Última reunião</div>
+        <div class="value" id="last-meet"></div>
+        <div class="sub" id="last-dec"></div>
+      </div>
+      <div class="meet next">
+        <div class="label">Próxima reunião</div>
+        <div class="value" id="next-meet"></div>
+        <div class="sub">Expectativa por membro abaixo</div>
+      </div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="grid-2">
+    <div class="panel">
+      <h2><span class="dot"></span> Distribuição de stance</h2>
+      <div class="chart-box"><canvas id="stanceChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2><span class="dot"></span> Reuniões recentes</h2>
+      <div class="votes-mini" id="votes-list"></div>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-bottom:24px">
+    <h2><span class="dot"></span> Membros do FOMC</h2>
+    <div class="filters">
+      <input type="search" id="q" placeholder="Buscar nome ou cargo…" />
+      <div>
+        <label>Stance</label>
+        <select id="f-stance">
+          <option value="">Todas</option>
+          <option value="hawk">Hawk</option>
+          <option value="dove">Dove</option>
+          <option value="neutro">Neutro</option>
+        </select>
+      </div>
+      <div>
+        <label>Votante 2026</label>
+        <select id="f-v26">
+          <option value="">Todos</option>
+          <option value="1">Sim</option>
+          <option value="0">Não</option>
+        </select>
+      </div>
+      <div>
+        <label>Votante 2027</label>
+        <select id="f-v27">
+          <option value="">Todos</option>
+          <option value="1">Sim</option>
+          <option value="0">Não</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="name">Nome <span class="sort">↕</span></th>
+            <th data-sort="cargo">Cargo <span class="sort">↕</span></th>
+            <th data-sort="stance_atual">Stance <span class="sort">↕</span></th>
+            <th data-sort="votante_2026">Vot. 2026 <span class="sort">↕</span></th>
+            <th data-sort="votante_2027">Vot. 2027 <span class="sort">↕</span></th>
+            <th data-sort="ultimo">Último voto <span class="sort">↕</span></th>
+            <th data-sort="proximo">Próximo esperado <span class="sort">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p style="margin:10px 0 0;color:var(--muted);font-size:.8rem">Clique em uma linha para ver evolução, temas e falas.</p>
+  </section>
+
+  <section class="panel">
+    <h2><span class="dot"></span> Falas recentes</h2>
+    <div class="filters">
+      <div>
+        <label>Tom</label>
+        <select id="f-tom">
+          <option value="">Todos</option>
+          <option value="hawk">Hawk</option>
+          <option value="dove">Dove</option>
+          <option value="neutro">Neutro</option>
+        </select>
+      </div>
+      <div>
+        <label>Membro</label>
+        <select id="f-sp-member"><option value="">Todos</option></select>
+      </div>
+    </div>
+    <div class="speech-list" id="speeches"></div>
+  </section>
+
+  <p class="footer">
+    Fontes: Federal Reserve Board e Feds regionais · Dados embutidos · Não inventa votos ou falas ·
+    <a href="https://www.federalreserve.gov/monetarypolicy/fomc.htm" target="_blank" rel="noopener">FOMC oficial</a>
+  </p>
+</div>
+
+<div class="modal-bg" id="modal-bg" role="dialog" aria-modal="true">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const DATA = {"meta": {"atualizado_em": "2026-10-15", "proxima_reuniao": "2026-10-27/28", "ultima_reuniao": "2026-09-15/16", "fonte": "https://www.federalreserve.gov/monetarypolicy/fomc.htm"}, "membros": [{"id": "warsh", "name": "Kevin Warsh", "cargo": "Chairman, Board of Governors / Chair FOMC", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "hawk", "evolucao": "Assumiu a cadeira em 22/mai/2026 (https://www.federalreserve.gov/newsevents/pressreleases/other20260522a.htm). Perfil historicamente associado a foco em estabilidade de preços; em Jackson Hole (28/ago/2026) falou sobre inovação financeira e política. No FOMC de set/2026 liderou alta unânime de 25 pb. Evidência pública de falas monetárias pós-posse ainda limitada além dos statements/press conferences oficiais. Out/2026 (16/out, entrevista/painel moderado FMI/BM Bangkok): não deu sinal sobre outubro/dezembro; reafirmou price stability; elogiou 'synchronous tightening' global; IA pressiona preços no curto prazo (transição 'very bumpy'); citação: 'The power really comes from our institutional credibility'. Tom: hawk no compromisso, sem pressa no timing (visão igual). Mercado (Bloomberg) leu como reforço de hold em 27–28/out.", "temas": ["estabilidade de preços", "inovação financeira/pagamentos", "comunicação sem forward guidance forte", "price stability", "IA / produtividade e preços", "credibilidade institucional", "synchronous tightening global"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb para 3,75–4,00%", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "provável manter em 27–28/out, segundo leitura do mercado na Bloomberg", "confianca": "media", "fontes": ["https://www.bloomberg.com/news/articles/2026-10-16/warsh-boosts-market-expectations-of-fed-hold-in-october", "https://www.cnbc.com/2026/10/16/feds-warsh-says-ai-development-path-will-be-very-bumpy-.html", "https://www.bangkokpost.com/business/general/3338195/warsh-says-fed-must-burnish-its-institutional-credibility-to-get-policy-right"]}, "link_principal": "https://www.federalreserve.gov/aboutthefed/bios/board/warsh.htm"}, {"id": "williams", "name": "John C. Williams", "cargo": "President, FRB New York / Vice Chair FOMC", "instituicao": "Federal Reserve Bank of New York", "regional": "New York", "votante_2026": true, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Votante permanente. Em 2024–início 2025 alinhado ao ciclo de cortes (Powell era). Em 2026 votou a favor do hold em jul e da alta em set. Discursos recentes enfatizam produtividade, data-dependence e metas de longo prazo (ex.: 'The Strategy and the Goals' 25/jun/2026; 'Unwavering Dedication' 29/set/2026). Out/2026 (Bloomberg, 13/out): mantém 'one more rate hike' em 2026 e nenhuma em 2027 por ora; já havia dito em 29/set não haver urgência.", "temas": ["r*", "produtividade", "implementação de política", "dual mandate"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "provável a favor de manter em out (sem urgência), com mais uma alta ainda em 2026 — em linha com a mediana do SEP", "confianca": "media", "fontes": ["https://www.thestar.com.my/business/business-news/2026/10/15/williams-signals-fed-nearing-peak-rates"]}, "link_principal": "https://www.newyorkfed.org/aboutthefed/orgchart/williams"}, {"id": "barr", "name": "Michael S. Barr", "cargo": "Governor, Board of Governors", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "hawk", "evolucao": "Em 2024–25 mais focado em supervisão/regulação; em 2026 passou a sinalizar preocupação crescente com inflação persistente. Em 29/set/2026 (Detroit): 'further policy adjustments are likely to be needed' para levar inflação à meta a tempo — tom hawkish após votar a favor da alta de set.", "temas": ["inflação", "AI e produtividade", "inclusão financeira", "supervisão"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "inclinado a nova alta ou a manter postura restritiva — citou necessidade de 'further policy adjustments'", "confianca": "media-alta", "fontes": ["https://www.federalreserve.gov/newsevents/speech/barr20260929a.htm"]}, "link_principal": "https://www.federalreserve.gov/newsevents/speech/barr20260929a.htm"}, {"id": "bowman", "name": "Michelle W. Bowman", "cargo": "Vice Chair for Supervision / Governor", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Em set/2024 dissentiu preferindo corte de 25 pb (vs. 50). Em jul/2025 dissentiu preferindo corte. Em 2025–26 migrou de dove relativa (cortes) para suporte à alta de set/2026. Foco dominante em 2026: modernização regulatória/supervisão (vários discursos). Fala monetária recente menos explícita sobre path de juros pós-set. Out/2026: no IIF Summit (Bangkok, 14/out) disse não sentir urgência para nova ação após a alta de set — sinal de pausa (mais dove no timing).", "temas": ["supervisão bancária", "regulação", "community banks", "framework monetário"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "provável a favor de manter 3,75–4,00% em out — disse não ver urgência para nova ação (14/out/2026)", "confianca": "media", "fontes": ["https://www.reuters.com/graphics/USA-ECONOMY/FED/gdpzajoegvw/"]}, "link_principal": "https://www.federalreserve.gov/newsevents/speech/2026-speeches.htm"}, {"id": "cook", "name": "Lisa D. Cook", "cargo": "Governor, Board of Governors", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Ao longo de 2024–25 enfatizou desinflação e dual mandate. Em 2026 votou com a maioria (hold jul, alta set). Discursos recentes misturam AI, economia rural e outlook; sem sinal claro de preferência por nova alta imediata vs. pausa.", "temas": ["AI", "dual mandate", "economia rural", "estabilidade financeira"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "incerto — alinhada ao consenso; falta fala recente pedindo (ou rejeitando) nova alta", "confianca": "baixa", "fontes": ["https://www.federalreserve.gov/newsevents/speech/2026-speeches.htm"]}, "link_principal": "https://www.federalreserve.gov/newsevents/speech/2026-speeches.htm"}, {"id": "jefferson", "name": "Philip N. Jefferson", "cargo": "Vice Chair, Board of Governors", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Consistente com abordagem cautelosa/data-dependent. Em 1/out/2026 (UVA): apoiou a alta de set; riscos de atividade/emprego equilibrados, riscos de inflação para cima; futuros ajustes 'determined by carefully examining trends in the data' — não precommitou nova alta.", "temas": ["dual mandate", "transmissão monetária", "risco de inflação", "AI"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "incerto / data-dependent — explícito que precisa de mais dados antes de julgar o próximo passo", "confianca": "media", "fontes": ["https://www.federalreserve.gov/newsevents/speech/jefferson20261001a.htm"]}, "link_principal": "https://www.federalreserve.gov/newsevents/speech/jefferson20261001a.htm"}, {"id": "powell", "name": "Jerome H. Powell", "cargo": "Governor, Board of Governors (ex-Chair até mai/2026)", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Chair até 15–22/mai/2026. Liderou ciclo de cortes set–dez/2025. Permaneceu no Board e votou a favor do hold (jul) e da alta (set/2026). Poucas falas monetárias públicas como Governor após deixar a cadeira (ex.: discurso não monetário 31/mai/2026 JFK Profile in Courage).", "temas": ["dual mandate", "independência do Fed", "balanços/framework"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "incerto — sem fala recente explícita sobre o path pós-set", "confianca": "baixa", "fontes": ["https://www.federalreserve.gov/newsevents/speech/2026-speeches.htm"]}, "link_principal": "https://www.federalreserve.gov/aboutthefed/bios/board/powell.htm"}, {"id": "waller", "name": "Christopher J. Waller", "cargo": "Governor, Board of Governors", "instituicao": "Board of Governors", "regional": null, "votante_2026": true, "votante_2027": true, "stance_atual": "hawk", "evolucao": "Em 2024 dove relativo ('The Time Has Come' set/2024). Em 2025 pediu cortes ('Case for Cutting Now' jul; 'Case for Continuing Rate Cuts' nov). Em 2026 virou: apoiou holds na primavera/verão e a alta de set; em 8/out/2026: 'I anticipate additional hikes' se dados seguirem o esperado — hawk claro.", "temas": ["path de juros", "SEP/comunicação", "inflação core", "AI/dados"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "inclinado a mais altas (não necessariamente em reuniões consecutivas); espera hikes adicionais se dados confirmarem", "confianca": "alta", "fontes": ["https://www.federalreserve.gov/newsevents/speech/waller20261008a.htm"]}, "link_principal": "https://www.federalreserve.gov/newsevents/speech/waller20261008a.htm"}, {"id": "hammack", "name": "Beth M. Hammack", "cargo": "President, FRB Cleveland", "instituicao": "Federal Reserve Bank of Cleveland", "regional": "Cleveland", "votante_2026": true, "votante_2027": false, "stance_atual": "hawk", "evolucao": "Hawk consistente em 2026: dissentiu em jul/2026 preferindo alta de 25 pb; votou a favor da alta em set. Em dez/2024 (ainda voting?) — ver votes. Em 2025 foi votante? 2025 voters included Collins/Goolsbee/Musalem/Schmid — Hammack votou 2026. Out/2026: discurso NABE (12/out) pediu stance restritiva e ajustes menores/mais rápidos; em 15/out (Goldman Sachs, NY) reforçou risco de inflationary mindset ('might need to move even more') e disse não sentir restraint nas condições financeiras — hawk confirmado, sem commit explícito a out.", "temas": ["inflação persistente", "política restritiva", "riscos de espera"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "votante 2026; inclinada a nova alta ou a manter postura bem restritiva em 27–28/out — vê condições financeiras sem restraint e alerta para expectativas; não deu forward guidance explícito de hike em out", "confianca": "media-alta", "fontes": ["https://finance.yahoo.com/economy/policy/articles/feds-hammack-warns-inflation-expectations-215355459.html", "https://www.investing.com/news/economy-news/feds-hammack-warns-inflation-expectations-deterioration-could-require-fed-response-4952736", "https://www.clevelandfed.org/collections/speeches/2026/sp-20261012-trimming-the-sails-communicating-my-reaction-function", "https://www.clevelandfed.org/collections/press-releases/2026/pr-20261012-cleveland-fed-president-hammack-speech"]}, "link_principal": "https://www.clevelandfed.org/about-us/about-the-cleveland-fed/leadership"}, {"id": "kashkari", "name": "Neel Kashkari", "cargo": "President, FRB Minneapolis", "instituicao": "Federal Reserve Bank of Minneapolis", "regional": "Minneapolis", "votante_2026": true, "votante_2027": false, "stance_atual": "hawk", "evolucao": "Em início 2026 ainda abria espaço a corte eventual; em mai/2026 dissentiu contra linguagem de 'additional adjustments' (tomada como vies a corte) após choque Irã. Em jul/2026 dissentiu preferindo alta 25 pb. Votou a favor da alta em set. Migração clara dove→hawk em 2026.", "temas": ["forward guidance", "choques de oferta/energia", "âncora de expectativas", "inflação"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "inclinado a aperto / nova alta se inflação permanecer elevada — histórico de dissents hawkish em 2026", "confianca": "media-alta", "fontes": ["https://www.minneapolisfed.org/article/2026/why-i-dissented", "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260729.htm"]}, "link_principal": "https://www.minneapolisfed.org/about-us/our-people/neel-kashkari"}, {"id": "logan", "name": "Lorie K. Logan", "cargo": "President, FRB Dallas", "instituicao": "Federal Reserve Bank of Dallas", "regional": "Dallas", "votante_2026": true, "votante_2027": false, "stance_atual": "hawk", "evolucao": "Em set/2025 cautelosa sobre novos cortes ('Why I'll be cautious about further rate cuts'). Em 2026: statement de dissent após abr e jul (preferiu alta em jul). Votou a favor da alta em set. Hawk clara entre os presidentes votantes.", "temas": ["inflação", "implementação monetária", "reservas/balanço", "cautela em cortes"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "provável hawkish — dissentiu em jul pedindo hike; stance de 2025–26 contra afrouxamento precoce", "confianca": "media-alta", "fontes": ["https://www.dallasfed.org/news/speeches/logan", "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260729.htm"]}, "link_principal": "https://www.dallasfed.org/news/speeches/logan"}, {"id": "paulson", "name": "Anna Paulson", "cargo": "President, FRB Philadelphia", "instituicao": "Federal Reserve Bank of Philadelphia", "regional": "Philadelphia", "votante_2026": true, "votante_2027": false, "stance_atual": "neutro", "evolucao": "Votante 2026. Votou com a maioria no hold de jul e na alta de set (sem dissent). Cobertura pública de falas monetárias detalhadas no período ainda limitada nesta base — stance inferida principalmente dos votos.", "temas": ["outlook econômico", "dual mandate"], "ultimo_voto": {"reuniao": "2026-09-15/16", "acao": "a favor da alta de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28", "expectativa": "incerto — sem fala recente linkável com preferência explícita", "confianca": "baixa", "fontes": ["https://www.philadelphiafed.org/"]}, "link_principal": "https://www.philadelphiafed.org/"}, {"id": "collins", "name": "Susan M. Collins", "cargo": "President, FRB Boston", "instituicao": "Federal Reserve Bank of Boston", "regional": "Boston", "votante_2026": false, "votante_2027": false, "stance_atual": "hawk", "evolucao": "Votante em 2025 (apoiou cortes set–dez). Em 2026 não vota. Em 13/out/2026: apoiou a alta de set e 'currently expect that it will be appropriate to raise rates a bit further before the end of the year'.", "temas": ["inflação", "produtividade/AI", "bancos comunitários", "balanço de riscos"], "ultimo_voto": {"reuniao": "2025-12-09/10 (última como votante)", "acao": "a favor do corte de 25 pb para 3,50–3,75%", "dissidencia": false, "fonte": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "como participante, sinaliza expectativa de mais alta(s) antes do fim de 2026", "confianca": "alta (quanto à preferência declarada; não vota)", "fontes": ["https://www.bostonfed.org/-/media/Documents/Speeches/PDF/collins/2026/20261013-text.pdf"]}, "link_principal": "https://www.bostonfed.org/news-and-events/speeches.aspx"}, {"id": "barkin", "name": "Thomas I. Barkin", "cargo": "President, FRB Richmond (Alternate FOMC 2026)", "instituicao": "Federal Reserve Bank of Richmond", "regional": "Richmond", "votante_2026": false, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Alternate 2026; votante 2027. Histórico geralmente pragmático. Cobertura detalhada de falas 2025–26 nesta base incompleta — marcar como a aprofundar. Out/2026 (14/out): CPI 'higher than I would have hoped'; não antecipa outubro, PPI informaria o outlook.", "temas": ["outlook regional", "dual mandate"], "ultimo_voto": {"reuniao": "N/A (não votante 2026)", "acao": "não votou na reunião de set/2026", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomc.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "não votante em 2026; sem sinal sobre outubro ('I do not want to project the outcome')", "confianca": "baixa", "fontes": ["https://www.fxstreet.com/news/feds-barkin-says-cpi-ran-too-hot-keeps-october-decision-open-202610141846"]}, "link_principal": "https://www.richmondfed.org/"}, {"id": "venable", "name": "Cheryl Venable", "cargo": "Interim President, FRB Atlanta (Alternate FOMC 2026)", "instituicao": "Federal Reserve Bank of Atlanta", "regional": "Atlanta", "votante_2026": false, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Interim desde 1/mar/2026 após aposentadoria de Raphael Bostic (28/fev/2026). Alternate FOMC 2026. Poucas falas monetárias públicas atribuídas encontradas; stance = incerto.", "temas": ["operações do banco", "pagamentos"], "ultimo_voto": {"reuniao": "N/A (não votante; interim)", "acao": "não votou", "dissidencia": false, "fonte": "https://www.atlantafed.org/who-we-are/people/executive-leadership-committee/cheryl-venable"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "incerto — evidência pública insuficiente", "confianca": "baixa", "fontes": ["https://www.atlantafed.org/presidential-search-what-to-know"]}, "link_principal": "https://www.atlantafed.org/who-we-are/people/executive-leadership-committee/cheryl-venable"}, {"id": "goolsbee", "name": "Austan D. Goolsbee", "cargo": "President, FRB Chicago (Alternate FOMC 2026)", "instituicao": "Federal Reserve Bank of Chicago", "regional": "Chicago", "votante_2026": false, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Votante 2025: apoiou cortes set/out; em dez/2025 dissentiu preferindo hold (mais hawk que a maioria naquela reunião). Alternate 2026; votante 2027. Em 2026 não há voto; stance atual a confirmar com falas recentes. Out/2026 (Yahoo Finance, 14/out): CPI 'discouraging', serviços >5%; quer mais dados, mas núcleo ~4% 'not acceptable' — mais hawk que o registrado antes.", "temas": ["labor market", "tarifas", "dual mandate"], "ultimo_voto": {"reuniao": "2025-12-09/10 (última como votante)", "acao": "contra o corte — preferiu manter a faixa", "dissidencia": true, "fonte": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "não votante em 2026; inclinação a esperar mais dados em out, aberto a alta se a inflação persistir", "confianca": "media", "fontes": ["https://finance.yahoo.com/economy/policy/article/chicago-feds-goolsbee-calls-september-inflation-discouraging-but-favors-waiting-on-more-data-185843740.html"]}, "link_principal": "https://www.chicagofed.org/"}, {"id": "musalem", "name": "Alberto G. Musalem", "cargo": "President, FRB St. Louis", "instituicao": "Federal Reserve Bank of St. Louis", "regional": "St. Louis", "votante_2026": false, "votante_2027": false, "stance_atual": "neutro", "evolucao": "Votante 2025 (apoiou cortes). Não votante 2026. Cobertura de falas 2026 nesta base limitada.", "temas": ["outlook", "dual mandate"], "ultimo_voto": {"reuniao": "2025-12-09/10", "acao": "a favor do corte de 25 pb", "dissidencia": false, "fonte": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "incerto — falas recentes específicas não coletadas", "confianca": "baixa", "fontes": ["https://www.stlouisfed.org/"]}, "link_principal": "https://www.stlouisfed.org/"}, {"id": "schmid", "name": "Jeffrey R. Schmid", "cargo": "President, FRB Kansas City", "instituicao": "Federal Reserve Bank of Kansas City", "regional": "Kansas City", "votante_2026": false, "votante_2027": false, "stance_atual": "hawk", "evolucao": "Votante 2025: dissentiu em out e dez/2025 preferindo hold (contra cortes) — hawk relativo. Não votante 2026.", "temas": ["inflação", "cautela em cortes"], "ultimo_voto": {"reuniao": "2025-12-09/10", "acao": "contra o corte — preferiu manter a faixa", "dissidencia": true, "fonte": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "incerto (não vota); histórico 2025 hawkish", "confianca": "baixa", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20251029a.htm", "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm"]}, "link_principal": "https://www.kansascityfed.org/"}, {"id": "daly", "name": "Mary C. Daly", "cargo": "President, FRB San Francisco (Alternate FOMC 2026)", "instituicao": "Federal Reserve Bank of San Francisco", "regional": "San Francisco", "votante_2026": false, "votante_2027": true, "stance_atual": "neutro", "evolucao": "Alternate 2026; votante 2027. Historicamente próxima ao consenso/pragmatismo. Detalhamento de falas 2025–26 a aprofundar nesta base. Out/2026 (Reuters, 14/out): nova alta 'more likely than not', mas sem urgência para outubro — viés hawk na direção, paciente no timing.", "temas": ["labor market", "inclusão", "dual mandate"], "ultimo_voto": {"reuniao": "N/A (não votante 2026)", "acao": "não votou", "dissidencia": false, "fonte": "https://www.federalreserve.gov/monetarypolicy/fomc.htm"}, "proximo_voto_esperado": {"reuniao": "2026-10-27/28 (não votante)", "expectativa": "não votante em 2026; preferência sinalizada por não ter pressa em out e alta mais adiante", "confianca": "media", "fontes": ["https://www.investing.com/news/economy-news/feds-daly-sees-rate-hikes-ahead-but-signals-no-urgency-for-october--reuters-4950170", "https://www.reuters.com/graphics/USA-ECONOMY/FED/gdpzajoegvw/"]}, "link_principal": "https://www.frbsf.org/"}], "falas": [{"date": "2026-10-16", "member_id": "warsh", "membro": "Kevin Warsh", "tipo": "entrevista/painel moderado (reuniões anuais FMI/Banco Mundial, Bangkok)", "titulo": "Painel moderado — FMI/Banco Mundial Annual Meetings, Bangkok", "resumo": "Não deu sinal sobre outubro/dezembro; reafirmou price stability; elogiou 'synchronous tightening' global; IA pressiona preços no curto prazo com transição 'very bumpy'. Citação: 'The power really comes from our institutional credibility'. Também: https://www.cnbc.com/2026/10/16/feds-warsh-says-ai-development-path-will-be-very-bumpy-.html | https://www.bangkokpost.com/business/general/3338195/warsh-says-fed-must-burnish-its-institutional-credibility-to-get-policy-right", "tom": "hawk no compromisso, sem pressa no timing (visão igual)", "link": "https://www.bloomberg.com/news/articles/2026-10-16/warsh-boosts-market-expectations-of-fed-hold-in-october"}, {"date": "2026-10-15", "member_id": "hammack", "membro": "Beth M. Hammack", "tipo": "comentários (Goldman Sachs, Nova York)", "titulo": "Expectativas de inflação e condições financeiras (pré-blackout)", "resumo": "Em evento Goldman Sachs (15/out), antes do blackout: se expectativas se deteriorarem e surgir 'inflationary mindset', o Fed 'might need to move even more'. Sobre condições financeiras: 'I'm not feeling that there's restraint coming from financial conditions at this point in time'. Sem orientação firme para a reunião de 27–28/out.", "tom": "hawk", "link": "https://finance.yahoo.com/economy/policy/articles/feds-hammack-warns-inflation-expectations-215355459.html"}, {"date": "2026-10-14", "member_id": "bowman", "membro": "Michelle W. Bowman", "tipo": "discurso", "titulo": "Supervisory Modernization After Silicon Valley Bank", "resumo": "Foco em modernização supervisória pós-SVB; não é fala de path de juros.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/bowman20261014a.htm"}, {"date": "2026-10-14", "member_id": "bowman", "membro": "Michelle W. Bowman", "tipo": "comentários (IIF Annual Membership Summit, Bangkok)", "titulo": "Q&A sobre política monetária no IIF Summit", "resumo": "Disse que, mesmo com inflação acima da meta, não vê urgência para nova ação após a alta de set: 'I don't feel any urgency for taking further action at this point'.", "tom": "neutro (paciente)", "link": "https://www.reuters.com/graphics/USA-ECONOMY/FED/gdpzajoegvw/"}, {"date": "2026-10-14", "member_id": "daly", "membro": "Mary C. Daly", "tipo": "entrevista (Reuters)", "titulo": "Entrevista à Reuters", "resumo": "Vê novas altas como mais prováveis que não, mas sem urgência para a reunião de 27–28/out: 'why force urgency when you don't need to have urgency?'.", "tom": "hawk (paciente no timing)", "link": "https://www.investing.com/news/economy-news/feds-daly-sees-rate-hikes-ahead-but-signals-no-urgency-for-october--reuters-4950170"}, {"date": "2026-10-14", "member_id": "goolsbee", "membro": "Austan D. Goolsbee", "tipo": "entrevista (Yahoo Finance)", "titulo": "CPI de setembro 'discouraging'", "resumo": "Chamou o CPI de set de 'discouraging', preocupado com inflação de serviços acima de 5%; quer mais dados, mas diz que núcleo perto de 4% 'is not acceptable' e a política 'needs to address that'.", "tom": "hawk", "link": "https://finance.yahoo.com/economy/policy/article/chicago-feds-goolsbee-calls-september-inflation-discouraging-but-favors-waiting-on-more-data-185843740.html"}, {"date": "2026-10-14", "member_id": "barkin", "membro": "Thomas I. Barkin", "tipo": "comentários públicos", "titulo": "CPI acima do esperado; não antecipa outubro", "resumo": "CPI 'was higher than I would have hoped'; não quis projetar o resultado da reunião de out e disse que o PPI informaria seu outlook.", "tom": "neutro", "link": "https://www.fxstreet.com/news/feds-barkin-says-cpi-ran-too-hot-keeps-october-decision-open-202610141846"}, {"date": "2026-10-13", "member_id": "collins", "membro": "Susan M. Collins", "tipo": "discurso", "titulo": "Perspectives on the Economy and the Banking Landscape", "resumo": "Apoiou alta de set; espera 'raise rates a bit further before the end of the year' se dados confirmarem.", "tom": "hawk", "link": "https://www.bostonfed.org/-/media/Documents/Speeches/PDF/collins/2026/20261013-text.pdf"}, {"date": "2026-10-13", "member_id": "williams", "membro": "John C. Williams", "tipo": "entrevista (Bloomberg)", "titulo": "Entrevista à Bloomberg no NY Fed", "resumo": "Mantém visão de mais uma alta em 2026 e nenhuma em 2027 por ora: 'I haven't changed my view that it may be appropriate to have one more rate hike'; vê juro real neutro ~1% e economia 'not overheating overall'.", "tom": "neutro", "link": "https://www.thestar.com.my/business/business-news/2026/10/15/williams-signals-fed-nearing-peak-rates"}, {"date": "2026-10-12", "member_id": "hammack", "membro": "Beth M. Hammack", "tipo": "discurso", "titulo": "Trimming the Sails: Communicating My Reaction Function", "resumo": "NABE (Cleveland): postura restritiva 'is appropriate to ensure a timely return to 2 percent inflation'; prefere 'smaller adjustments… relatively quickly' vs. esperar e corrigir mais. Inflação ampla; risco de 'inflationary mindset'; condições financeiras neutras (não freando demanda).", "tom": "hawk", "link": "https://www.clevelandfed.org/collections/speeches/2026/sp-20261012-trimming-the-sails-communicating-my-reaction-function"}, {"date": "2026-10-08", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "The Signaling Value of the Summary of Economic Projections", "resumo": "Explica virada para alta em set; 'I anticipate additional hikes' se dados seguirem o esperado.", "tom": "hawk", "link": "https://www.federalreserve.gov/newsevents/speech/waller20261008a.htm"}, {"date": "2026-10-01", "member_id": "jefferson", "membro": "Philip N. Jefferson", "tipo": "discurso", "titulo": "The U.S. Economy and Monetary Policy", "resumo": "Apoiou alta de set; riscos de inflação para cima; próximos passos dependem dos dados.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/jefferson20261001a.htm"}, {"date": "2026-09-29", "member_id": "barr", "membro": "Michael S. Barr", "tipo": "discurso", "titulo": "Economic Conditions and Monetary Policy", "resumo": "'Further policy adjustments are likely to be needed' para trazer inflação à meta a tempo.", "tom": "hawk", "link": "https://www.federalreserve.gov/newsevents/speech/barr20260929a.htm"}, {"date": "2026-09-29", "member_id": "williams", "membro": "John C. Williams", "tipo": "discurso", "titulo": "Unwavering Dedication", "resumo": "Discurso listado no NY Fed; tema institucional/compromisso (detalhe textual a aprofundar).", "tom": "neutro", "link": "https://www.newyorkfed.org/newsevents/speeches"}, {"date": "2026-09-22", "member_id": "williams", "membro": "John C. Williams", "tipo": "discurso", "titulo": "Do You Remember?", "resumo": "Discurso NY Fed pós-reunião de set.", "tom": "neutro", "link": "https://www.newyorkfed.org/newsevents/speeches"}, {"date": "2026-09-03", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "entrevista", "titulo": "The Economic Outlook and Some Comments on My Policy Communication (Reuters NEXT)", "resumo": "Comunicação de política e outlook pré-reunião de set.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/waller20260903a.htm"}, {"date": "2026-08-28", "member_id": "warsh", "membro": "Kevin Warsh", "tipo": "discurso", "titulo": "Jackson Hole — Financial Innovation: Implications for Payments and Policy", "resumo": "Primeira grande fala pública como Chair em Jackson Hole; inovação financeira/pagamentos e policy.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/2026-speeches.htm"}, {"date": "2026-07-31", "member_id": "logan", "membro": "Lorie K. Logan", "tipo": "statement", "titulo": "Statement on FOMC dissent (após reunião jul)", "resumo": "Explicou dissent preferindo alta de 25 pb em jul.", "tom": "hawk", "link": "https://www.dallasfed.org/news/speeches/logan"}, {"date": "2026-07-31", "member_id": "kashkari", "membro": "Neel Kashkari", "tipo": "statement", "titulo": "Statement on FOMC dissent (jul — preferiu alta)", "resumo": "Dissent em jul preferindo hike (ver minutes).", "tom": "hawk", "link": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260729.htm"}, {"date": "2026-07-16", "member_id": "logan", "membro": "Lorie K. Logan", "tipo": "discurso", "titulo": "Remarks on inflation, employment and monetary policy", "resumo": "Listening in 360 — inflação, emprego e política monetária.", "tom": "hawk", "link": "https://www.dallasfed.org/news/speeches/logan"}, {"date": "2026-07-13", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "Monetary Policy at a Crossroads", "resumo": "Discussão do ponto de inflexão da política antes da virada de set.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/waller20260713a.htm"}, {"date": "2026-05-22", "member_id": "warsh", "membro": "Kevin Warsh", "tipo": "nota oficial", "titulo": "Toma posse como Chairman do Board / FOMC", "resumo": "Juramento e seleção unânime como Chair do FOMC.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/pressreleases/other20260522a.htm"}, {"date": "2026-05-01", "member_id": "kashkari", "membro": "Neel Kashkari", "tipo": "artigo", "titulo": "Why I Dissented", "resumo": "Dissent contra linguagem de 'additional adjustments' (vies a corte) após choque no Oriente Médio.", "tom": "hawk", "link": "https://www.minneapolisfed.org/article/2026/why-i-dissented"}, {"date": "2026-05-01", "member_id": "logan", "membro": "Lorie K. Logan", "tipo": "statement", "titulo": "Statement on FOMC dissent (após abr)", "resumo": "Dissent após reunião de abr/2026.", "tom": "hawk", "link": "https://www.dallasfed.org/news/speeches/logan"}, {"date": "2025-11-17", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "The Case for Continuing Rate Cuts", "resumo": "Argumentou por continuidade dos cortes em final de 2025.", "tom": "dove", "link": "https://www.federalreserve.gov/newsevents/speech/waller20251117a.htm"}, {"date": "2025-10-16", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "Cutting Rates in the Face of Conflicting Data", "resumo": "Defendeu cortes apesar de dados conflitantes.", "tom": "dove", "link": "https://www.federalreserve.gov/newsevents/speech/waller20251016a.htm"}, {"date": "2025-09-30", "member_id": "logan", "membro": "Lorie K. Logan", "tipo": "discurso", "titulo": "Why I'll be cautious about further rate cuts", "resumo": "Cautela sobre novos cortes — tom hawkish relativo no ciclo de easing.", "tom": "hawk", "link": "https://www.dallasfed.org/news/speeches/logan"}, {"date": "2025-09-30", "member_id": "collins", "membro": "Susan M. Collins", "tipo": "discurso", "titulo": "Views on Current Economic Conditions and Monetary Policy (CFR)", "resumo": "Condições econômicas e política monetária — Council on Foreign Relations.", "tom": "neutro", "link": "https://www.bostonfed.org/news-and-events/speeches.aspx"}, {"date": "2025-08-22", "member_id": "powell", "membro": "Jerome H. Powell", "tipo": "discurso", "titulo": "Monetary Policy and the Fed's Framework Review (Jackson Hole)", "resumo": "Jackson Hole 2025 — framework e política.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/powell20250822a.htm"}, {"date": "2025-07-17", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "The Case for Cutting Now", "resumo": "Pedido explícito por corte imediato.", "tom": "dove", "link": "https://www.federalreserve.gov/newsevents/speech/waller20250717a.htm"}, {"date": "2024-11-20", "member_id": "bowman", "membro": "Michelle W. Bowman", "tipo": "discurso", "titulo": "Approaching Policymaking Pragmatically", "resumo": "Abordagem pragmática à política.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/bowman20241120a.htm"}, {"date": "2024-11-14", "member_id": "powell", "membro": "Jerome H. Powell", "tipo": "discurso", "titulo": "Economic Outlook (Dallas)", "resumo": "Outlook econômico pós-cortes iniciais.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/powell20241114a.htm"}, {"date": "2024-10-14", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "Thoughts on the Economy and Policy Rules at the FOMC", "resumo": "Regras de política e economia — Hoover.", "tom": "neutro", "link": "https://www.federalreserve.gov/newsevents/speech/waller20241014a.htm"}, {"date": "2024-10-10", "member_id": "williams", "membro": "John C. Williams", "tipo": "discurso", "titulo": "All About Data", "resumo": "Ênfase em data-dependence.", "tom": "neutro", "link": "https://www.newyorkfed.org/newsevents/speeches"}, {"date": "2024-09-06", "member_id": "waller", "membro": "Christopher J. Waller", "tipo": "discurso", "titulo": "The Time Has Come", "resumo": "Sinalizou que era hora de começar a cortar.", "tom": "dove", "link": "https://www.federalreserve.gov/newsevents/speech/waller20240906a.htm"}], "reunioes": [{"reuniao": "2026-09-15/16", "decisao": "alta de 25 pb para 3,75–4,00%", "resultado": "12–0", "votos_a_favor": ["Kevin Warsh", "John C. Williams", "Michael S. Barr", "Michelle W. Bowman", "Lisa D. Cook", "Beth M. Hammack", "Philip N. Jefferson", "Neel Kashkari", "Lorie K. Logan", "Anna Paulson", "Jerome H. Powell", "Christopher J. Waller"], "votos_contra": [], "dissidencias_detalhe": "Nenhuma", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm", "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260916.htm"]}, {"reuniao": "2026-07-28/29", "decisao": "manter 3,50–3,75%", "resultado": "9–3", "votos_a_favor": ["Kevin Warsh", "John C. Williams", "Michael S. Barr", "Michelle W. Bowman", "Lisa D. Cook", "Philip N. Jefferson", "Anna Paulson", "Jerome H. Powell", "Christopher J. Waller"], "votos_contra": ["Beth M. Hammack", "Neel Kashkari", "Lorie K. Logan"], "dissidencias_detalhe": "Hammack, Kashkari e Logan preferiram alta de 25 pb", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20260729a.htm", "https://www.federalreserve.gov/monetarypolicy/fomcminutes20260729.htm"]}, {"reuniao": "2025-12-09/10", "decisao": "corte de 25 pb para 3,50–3,75%", "resultado": "9–3", "votos_a_favor": ["Jerome H. Powell", "John C. Williams", "Michael S. Barr", "Michelle W. Bowman", "Susan M. Collins", "Lisa D. Cook", "Philip N. Jefferson", "Alberto G. Musalem", "Christopher J. Waller"], "votos_contra": ["Stephen I. Miran", "Austan D. Goolsbee", "Jeffrey R. Schmid"], "dissidencias_detalhe": "Miran preferiu corte de 50 pb; Goolsbee e Schmid preferiram manter", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm"]}, {"reuniao": "2025-10-28/29", "decisao": "corte de 25 pb para 3,75–4,00%; fim do QT em 1/dez", "resultado": "10–2", "votos_a_favor": ["Jerome H. Powell", "John C. Williams", "Michael S. Barr", "Michelle W. Bowman", "Susan M. Collins", "Lisa D. Cook", "Austan D. Goolsbee", "Philip N. Jefferson", "Alberto G. Musalem", "Christopher J. Waller"], "votos_contra": ["Stephen I. Miran", "Jeffrey R. Schmid"], "dissidencias_detalhe": "Miran preferiu corte de 50 pb; Schmid preferiu manter", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20251029a.htm"]}, {"reuniao": "2025-09-16/17", "decisao": "corte de 25 pb para 4,00–4,25%", "resultado": "11–1", "votos_a_favor": ["Jerome H. Powell", "John C. Williams", "Michael S. Barr", "Michelle W. Bowman", "Susan M. Collins", "Lisa D. Cook", "Austan D. Goolsbee", "Philip N. Jefferson", "Alberto G. Musalem", "Jeffrey R. Schmid", "Christopher J. Waller"], "votos_contra": ["Stephen I. Miran"], "dissidencias_detalhe": "Miran preferiu corte de 50 pb", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20250917a.htm"]}, {"reuniao": "2025-05-06/07", "decisao": "manter 4,25–4,50% (unânime segundo buscas; confirmar minutes)", "resultado": "unânime (relatado)", "votos_a_favor": ["não listados individualmente nesta versão — ver statement"], "votos_contra": [], "dissidencias_detalhe": "Nenhuma reportada no statement", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20250507a.htm"]}, {"reuniao": "2025-01-28/29", "decisao": "manter 4,25–4,50%", "resultado": "unânime (relatado)", "votos_a_favor": ["não listados individualmente nesta versão — ver statement"], "votos_contra": [], "dissidencias_detalhe": "Nenhuma reportada no statement", "fontes": ["https://www.federalreserve.gov/newsevents/pressreleases/monetary20250129a.htm"]}], "atualizado_em": "2026-10-16"};
+
+const STANCE_LABEL = { hawk: "Hawk", dove: "Dove", neutro: "Neutro" };
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+function fmtMeet(s) {
+  if (!s) return "—";
+  // 2026-09-15/16 or 2026-10-27/28
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:\/(\d{2}))?$/);
+  if (!m) return s;
+  const months = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  const mon = months[+m[2]-1];
+  if (m[4]) return `${+m[3]}–${m[4]} ${mon}/${m[1]}`;
+  return `${+m[3]} ${mon}/${m[1]}`;
+}
+function shortExpect(t) {
+  if (!t) return "—";
+  const s = String(t);
+  if (s.length <= 90) return s;
+  return s.slice(0, 87) + "…";
+}
+function yesNo(b) {
+  return b
+    ? '<span class="badge yes">Sim</span>'
+    : '<span class="badge no">Não</span>';
+}
+function stanceBadge(s) {
+  const k = (s || "neutro").toLowerCase();
+  return `<span class="badge ${k}">${STANCE_LABEL[k] || s}</span>`;
+}
+
+// Header
+document.getElementById("upd").textContent = (() => {
+  const d = DATA.meta.atualizado_em;
+  const m = d && d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (d || "—");
+})();
+document.getElementById("next-meet").textContent = fmtMeet(DATA.meta.proxima_reuniao);
+
+const lastVote = DATA.reunioes && DATA.reunioes[0];
+document.getElementById("last-meet").textContent = fmtMeet(DATA.meta.ultima_reuniao || (lastVote && lastVote.reuniao));
+document.getElementById("last-dec").textContent = lastVote
+  ? `${lastVote.decisao} · ${lastVote.resultado}`
+  : "—";
+
+// KPIs
+const membros = DATA.membros || [];
+const hawks = membros.filter(m => m.stance_atual === "hawk").length;
+const doves = membros.filter(m => m.stance_atual === "dove").length;
+const neutros = membros.filter(m => m.stance_atual === "neutro").length;
+const v26 = membros.filter(m => m.votante_2026).length;
+document.getElementById("kpis").innerHTML = `
+  <div class="kpi hawk"><div class="n">${hawks}</div><div class="l">Hawks</div></div>
+  <div class="kpi dove"><div class="n">${doves}</div><div class="l">Doves</div></div>
+  <div class="kpi neutro"><div class="n">${neutros}</div><div class="l">Neutros</div></div>
+  <div class="kpi vot"><div class="n">${v26}</div><div class="l">Votantes 2026</div></div>
+  <div class="kpi"><div class="n">${membros.length}</div><div class="l">Membros</div></div>
+  <div class="kpi"><div class="n">${(DATA.falas||[]).length}</div><div class="l">Falas na base</div></div>
+`;
+
+// Votes list
+document.getElementById("votes-list").innerHTML = (DATA.reunioes || []).slice(0, 6).map(r => `
+  <div class="vote-row">
+    <div><strong>${fmtMeet(r.reuniao)}</strong><div class="dec">${r.decisao}</div></div>
+    <div>${r.resultado}${r.dissidencias_detalhe && r.dissidencias_detalhe !== "Nenhuma" ? ` · <span class="badge diss">dissent</span>` : ""}</div>
+  </div>
+`).join("") || '<div class="empty">Sem reuniões</div>';
+
+// Chart
+const ctx = document.getElementById("stanceChart");
+new Chart(ctx, {
+  type: "doughnut",
+  data: {
+    labels: ["Hawk", "Dove", "Neutro"],
+    datasets: [{
+      data: [hawks, doves, neutros],
+      backgroundColor: ["#ff6b6b", "#4ecdc4", "#f0c14b"],
+      borderColor: "#152238",
+      borderWidth: 3,
+      hoverOffset: 6
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "bottom",
+        labels: { color: "#8fa3c1", padding: 16, font: { size: 13 } }
+      },
+      tooltip: {
+        callbacks: {
+          label: (c) => ` ${c.label}: ${c.raw} (${Math.round(c.raw / membros.length * 100)}%)`
+        }
+      }
+    },
+    cutout: "62%"
+  }
+});
+
+// Table state
+let sortKey = "name";
+let sortAsc = true;
+
+function sortVal(m, key) {
+  if (key === "ultimo") return (m.ultimo_voto && m.ultimo_voto.acao) || "";
+  if (key === "proximo") return (m.proximo_voto_esperado && m.proximo_voto_esperado.expectativa) || "";
+  if (key === "votante_2026" || key === "votante_2027") return m[key] ? 1 : 0;
+  return (m[key] || "").toString().toLowerCase();
+}
+
+function filteredMembers() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const st = document.getElementById("f-stance").value;
+  const v26f = document.getElementById("f-v26").value;
+  const v27f = document.getElementById("f-v27").value;
+  let list = membros.slice();
+  if (q) list = list.filter(m =>
+    (m.name || "").toLowerCase().includes(q) ||
+    (m.cargo || "").toLowerCase().includes(q) ||
+    (m.instituicao || "").toLowerCase().includes(q)
+  );
+  if (st) list = list.filter(m => m.stance_atual === st);
+  if (v26f !== "") list = list.filter(m => !!m.votante_2026 === (v26f === "1"));
+  if (v27f !== "") list = list.filter(m => !!m.votante_2027 === (v27f === "1"));
+  list.sort((a, b) => {
+    const av = sortVal(a, sortKey), bv = sortVal(b, sortKey);
+    if (av < bv) return sortAsc ? -1 : 1;
+    if (av > bv) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  return list;
+}
+
+function renderTable() {
+  const list = filteredMembers();
+  const tb = document.getElementById("tbody");
+  if (!list.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="empty">Nenhum membro com esses filtros</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(m => {
+    const uv = m.ultimo_voto || {};
+    const pv = m.proximo_voto_esperado || {};
+    const diss = uv.dissidencia ? ' <span class="badge diss">dissent</span>' : "";
+    return `<tr class="clickable" data-id="${m.id}">
+      <td><strong>${m.name}</strong></td>
+      <td style="color:var(--muted);max-width:220px">${m.cargo || "—"}</td>
+      <td>${stanceBadge(m.stance_atual)}</td>
+      <td>${yesNo(m.votante_2026)}</td>
+      <td>${yesNo(m.votante_2027)}</td>
+      <td style="max-width:200px">${uv.acao || "—"}${diss}<div style="color:var(--muted);font-size:.75rem;margin-top:2px">${fmtMeet(uv.reuniao)}</div></td>
+      <td style="max-width:240px;color:var(--muted)">${shortExpect(pv.expectativa)}</td>
+    </tr>`;
+  }).join("");
+  tb.querySelectorAll("tr.clickable").forEach(tr => {
+    tr.addEventListener("click", () => openMember(tr.dataset.id));
+  });
+}
+
+document.querySelectorAll("th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortAsc = !sortAsc;
+    else { sortKey = k; sortAsc = true; }
+    renderTable();
+  });
+});
+["q","f-stance","f-v26","f-v27"].forEach(id => {
+  document.getElementById(id).addEventListener("input", renderTable);
+  document.getElementById(id).addEventListener("change", renderTable);
+});
+
+// Speeches
+const spMemberSel = document.getElementById("f-sp-member");
+const memberIds = [...new Set((DATA.falas||[]).map(f => f.member_id))];
+memberIds.sort((a,b) => {
+  const na = (membros.find(m => m.id===a)||{}).name || a;
+  const nb = (membros.find(m => m.id===b)||{}).name || b;
+  return na.localeCompare(nb, "pt");
+});
+memberIds.forEach(id => {
+  const n = (membros.find(m => m.id===id)||{}).name || id;
+  const o = document.createElement("option");
+  o.value = id; o.textContent = n;
+  spMemberSel.appendChild(o);
+});
+
+function fmtSpeechDate(d) {
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return d;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function renderSpeeches() {
+  const tom = document.getElementById("f-tom").value;
+  const mid = document.getElementById("f-sp-member").value;
+  let list = (DATA.falas || []).slice().sort((a,b) => (b.date||"").localeCompare(a.date||""));
+  if (tom) list = list.filter(f => f.tom === tom);
+  if (mid) list = list.filter(f => f.member_id === mid);
+  const el = document.getElementById("speeches");
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">Nenhuma fala com esses filtros</div>';
+    return;
+  }
+  el.innerHTML = list.map(f => `
+    <div class="speech">
+      <div class="top">
+        <span class="who">${f.membro || f.member_id}</span>
+        <span>${stanceBadge(f.tom)} <span class="when">${fmtSpeechDate(f.date)} · ${f.tipo || ""}</span></span>
+      </div>
+      <div class="title"><a href="${f.link}" target="_blank" rel="noopener">${f.titulo || "Ver fonte"}</a></div>
+      <div class="resumo">${f.resumo || ""}</div>
+    </div>
+  `).join("");
+}
+["f-tom","f-sp-member"].forEach(id => {
+  document.getElementById(id).addEventListener("change", renderSpeeches);
+});
+
+// Modal
+function openMember(id) {
+  const m = membros.find(x => x.id === id);
+  if (!m) return;
+  const uv = m.ultimo_voto || {};
+  const pv = m.proximo_voto_esperado || {};
+  const falas = (DATA.falas || []).filter(f => f.member_id === id)
+    .sort((a,b) => (b.date||"").localeCompare(a.date||""));
+  const fontesPv = (pv.fontes || []).map(u => `<a href="${u}" target="_blank" rel="noopener">${u.replace(/^https?:\/\//,"")}</a>`).join("<br>");
+  document.getElementById("modal").innerHTML = `
+    <header>
+      <div>
+        <h3>${m.name}</h3>
+        <div style="color:var(--muted);font-size:.9rem;margin-top:4px">${m.cargo || ""}</div>
+        <div style="margin-top:8px">${stanceBadge(m.stance_atual)} ${m.link_principal ? `<a href="${m.link_principal}" target="_blank" rel="noopener" style="margin-left:8px;font-size:.85rem">bio / página oficial</a>` : ""}</div>
+      </div>
+      <button class="close" type="button" aria-label="Fechar">×</button>
+    </header>
+    <div class="meta-grid">
+      <div class="meta-item"><div class="k">Votante 2026</div><div class="v">${m.votante_2026 ? "Sim" : "Não"}</div></div>
+      <div class="meta-item"><div class="k">Votante 2027</div><div class="v">${m.votante_2027 ? "Sim" : "Não"}</div></div>
+      <div class="meta-item"><div class="k">Último voto (${fmtMeet(uv.reuniao)})</div><div class="v">${uv.acao || "—"}${uv.dissidencia ? " · dissent" : ""}${uv.fonte ? `<br><a href="${uv.fonte}" target="_blank" rel="noopener">minutes / fonte</a>` : ""}</div></div>
+      <div class="meta-item"><div class="k">Próximo esperado (${fmtMeet(pv.reuniao)})</div><div class="v">${pv.expectativa || "—"}${pv.confianca ? `<br><span style="color:var(--muted);font-size:.8rem">confiança: ${pv.confianca}</span>` : ""}${fontesPv ? `<br>${fontesPv}` : ""}</div></div>
+    </div>
+    ${(m.temas && m.temas.length) ? `<div class="section-label">Temas</div><div class="temas">${m.temas.map(t => `<span class="tema">${t}</span>`).join("")}</div>` : ""}
+    <div class="section-label">Evolução</div>
+    <p class="evolucao">${m.evolucao || "—"}</p>
+    <div class="section-label">Falas na base (${falas.length})</div>
+    <div class="member-speeches">
+      ${falas.length ? falas.map(f => `
+        <a class="sp" href="${f.link}" target="_blank" rel="noopener">
+          <strong>${fmtSpeechDate(f.date)}</strong> · ${stanceBadge(f.tom)} · ${f.titulo || "fonte"}
+          <div style="color:var(--muted);font-size:.8rem;margin-top:2px">${f.resumo || ""}</div>
+        </a>`).join("") : '<div class="empty">Nenhuma fala curada para este membro nesta versão</div>'}
+    </div>
+  `;
+  document.getElementById("modal-bg").classList.add("open");
+  document.querySelector("#modal .close").onclick = closeModal;
+}
+function closeModal() {
+  document.getElementById("modal-bg").classList.remove("open");
+}
+document.getElementById("modal-bg").addEventListener("click", (e) => {
+  if (e.target.id === "modal-bg") closeModal();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+renderTable();
+renderSpeeches();
+</script>
+</body>
+</html>
